@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>微调模型测试 - Hunyuan-7B LoRA</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 微调模型测试</h1>
+            <p class="subtitle">Hunyuan-7B-Instruct + LoRA 适配器</p>
+        </header>
+
+        <div class="status-bar">
+            <span class="status-label">模型状态：</span>
+            <span id="model-status" class="status-value">检查中...</span>
+            <button id="load-model-btn" class="btn btn-secondary" style="display: none;">加载模型</button>
+        </div>
+
+        <main>
+            <div class="chat-container">
+                <div class="settings-panel">
+                    <h3>⚙️ 生成参数</h3>
+                    <div class="setting-item">
+                        <label for="use-streaming">
+                            <input type="checkbox" id="use-streaming" checked>
+                            启用流式输出（边生成边显示）
+                        </label>
+                    </div>
+                    <div class="setting-item">
+                        <label for="max-tokens">最大生成长度</label>
+                        <input type="number" id="max-tokens" value="256" min="1" max="2048">
+                    </div>
+                    <div class="setting-item">
+                        <label for="temperature">Temperature (创造性): <span id="temp-value">0.7</span></label>
+                        <input type="range" id="temperature" min="0" max="1" step="0.1" value="0.7">
+                    </div>
+                    <div class="setting-item">
+                        <label for="top-p">Top-P: <span id="top-p-value">0.9</span></label>
+                        <input type="range" id="top-p" min="0" max="1" step="0.05" value="0.9">
+                    </div>
+                </div>
+
+                <div class="chat-panel">
+                    <div id="chat-messages" class="chat-messages">
+                        <div class="message system-message">
+                            <p>欢迎使用微调模型测试工具！在下方输入您的问题，点击发送即可测试模型效果。</p>
+                        </div>
+                    </div>
+
+                    <div class="input-area">
+                        <textarea id="user-input" placeholder="输入您的问题或提示词..." rows="3"></textarea>
+                        <div class="input-actions">
+                            <button id="send-btn" class="btn btn-primary">
+                                <span class="btn-text">发送</span>
+                                <span class="btn-loading" style="display: none;">生成中...</span>
+                            </button>
+                            <button id="clear-btn" class="btn btn-secondary">清空对话</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>基于 LLaMA-Factory 微调的模型 | Powered by Flask</p>
+        </footer>
+    </div>
+
+    <script>
+        // DOM 元素
+        const modelStatus = document.getElementById('model-status');
+        const loadModelBtn = document.getElementById('load-model-btn');
+        const chatMessages = document.getElementById('chat-messages');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        const useStreaming = document.getElementById('use-streaming');
+        const maxTokens = document.getElementById('max-tokens');
+        const temperature = document.getElementById('temperature');
+        const topP = document.getElementById('top-p');
+        const tempValue = document.getElementById('temp-value');
+        const topPValue = document.getElementById('top-p-value');
+
+        // 更新滑块显示值
+        temperature.addEventListener('input', () => {
+            tempValue.textContent = temperature.value;
+        });
+        topP.addEventListener('input', () => {
+            topPValue.textContent = topP.value;
+        });
+
+        // 检查模型状态
+        async function checkModelStatus() {
+            try {
+                const response = await fetch('/api/model_status');
+                const data = await response.json();
+                
+                if (data.loaded) {
+                    modelStatus.textContent = '已加载 ✓';
+                    modelStatus.className = 'status-value status-loaded';
+                    loadModelBtn.style.display = 'none';
+                } else {
+                    modelStatus.textContent = '未加载';
+                    modelStatus.className = 'status-value status-unloaded';
+                    loadModelBtn.style.display = 'inline-block';
+                }
+            } catch (error) {
+                modelStatus.textContent = '连接失败';
+                modelStatus.className = 'status-value status-error';
+            }
+        }
+
+        // 加载模型
+        loadModelBtn.addEventListener('click', async () => {
+            loadModelBtn.disabled = true;
+            loadModelBtn.textContent = '加载中...';
+            modelStatus.textContent = '加载中...';
+            
+            try {
+                const response = await fetch('/api/load_model', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    modelStatus.textContent = '已加载 ✓';
+                    modelStatus.className = 'status-value status-loaded';
+                    loadModelBtn.style.display = 'none';
+                    addMessage('system', '模型加载成功！现在可以开始测试了。');
+                } else {
+                    throw new Error(data.message);
+                }
+            } catch (error) {
+                modelStatus.textContent = '加载失败';
+                modelStatus.className = 'status-value status-error';
+                addMessage('system', `模型加载失败: ${error.message}`);
+            }
+            
+            loadModelBtn.disabled = false;
+            loadModelBtn.textContent = '加载模型';
+        });
+
+        // 添加消息到聊天区域
+        function addMessage(type, content) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}-message`;
+            messageDiv.innerHTML = `<p>${escapeHtml(content)}</p>`;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // HTML 转义
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // 发送消息（流式输出）
+        async function sendMessageStream(prompt, params) {
+            // 创建一个空的助手消息用于流式更新
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message assistant-message';
+            const contentP = document.createElement('p');
+            messageDiv.appendChild(contentP);
+            chatMessages.appendChild(messageDiv);
+            
+            let fullResponse = '';
+            
+            try {
+                const response = await fetch('/api/chat_stream', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        prompt: prompt,
+                        ...params
+                    })
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    // 将新数据添加到缓冲区
+                    buffer += decoder.decode(value, { stream: true });
+                    
+                    // 按行分割（SSE 使用 \n\n 分隔消息）
+                    const lines = buffer.split('\n');
+                    
+                    // 保留最后一个不完整的行
+                    buffer = lines.pop() || '';
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const jsonStr = line.slice(6).trim();
+                                if (!jsonStr) continue;
+                                
+                                const data = JSON.parse(jsonStr);
+                                
+                                if (data.error) {
+                                    addMessage('system', `错误: ${data.error}`);
+                                    messageDiv.remove();
+                                    return;
+                                }
+                                
+                                if (data.token) {
+                                    fullResponse += data.token;
+                                    contentP.textContent = fullResponse;
+                                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                                }
+                                
+                                if (data.done) {
+                                    return;
+                                }
+                            } catch (e) {
+                                console.error('JSON 解析错误:', e, 'Line:', line);
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                addMessage('system', `请求失败: ${error.message}`);
+                messageDiv.remove();
+            }
+        }
+
+        // 发送消息（非流式）
+        async function sendMessageNormal(prompt, params) {
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        prompt: prompt,
+                        ...params
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    addMessage('assistant', data.response);
+                } else {
+                    addMessage('system', `错误: ${data.error}`);
+                }
+            } catch (error) {
+                addMessage('system', `请求失败: ${error.message}`);
+            }
+        }
+
+        // 发送消息（统一入口）
+        async function sendMessage() {
+            const prompt = userInput.value.trim();
+            if (!prompt) return;
+
+            // 添加用户消息
+            addMessage('user', prompt);
+            userInput.value = '';
+
+            // 显示加载状态
+            sendBtn.querySelector('.btn-text').style.display = 'none';
+            sendBtn.querySelector('.btn-loading').style.display = 'inline';
+            sendBtn.disabled = true;
+
+            // 生成参数
+            const params = {
+                max_new_tokens: parseInt(maxTokens.value),
+                temperature: parseFloat(temperature.value),
+                top_p: parseFloat(topP.value)
+            };
+
+            // 根据开关选择流式或非流式
+            if (useStreaming.checked) {
+                await sendMessageStream(prompt, params);
+            } else {
+                await sendMessageNormal(prompt, params);
+            }
+
+            // 恢复按钮状态
+            sendBtn.querySelector('.btn-text').style.display = 'inline';
+            sendBtn.querySelector('.btn-loading').style.display = 'none';
+            sendBtn.disabled = false;
+        }
+
+        // 清空对话
+        clearBtn.addEventListener('click', () => {
+            chatMessages.innerHTML = `
+                <div class="message system-message">
+                    <p>对话已清空，请输入新的问题。</p>
+                </div>
+            `;
+        });
+
+        // 事件监听
+        sendBtn.addEventListener('click', sendMessage);
+        userInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // 页面加载时检查模型状态
+        checkModelStatus();
+    </script>
+</body>
+</html>

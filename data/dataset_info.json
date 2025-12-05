@@ -5,6 +5,9 @@
   "alpaca_en_demo": {
     "file_name": "alpaca_en_demo.json"
   },
+  "my_custom_dataset": {
+    "file_name": "my_data.json"
+  },
   "alpaca_zh_demo": {
     "file_name": "alpaca_zh_demo.json"
   },

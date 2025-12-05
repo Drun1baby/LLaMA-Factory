@@ -1,0 +1,16 @@
+# 微调模型测试 Web 框架依赖
+
+# Flask Web 框架
+flask>=2.3.0
+
+# 模型相关
+torch>=2.0.0
+transformers>=4.40.0
+peft>=0.10.0
+accelerate>=0.27.0
+
+# 量化支持（可选）
+# bitsandbytes>=0.43.0  # 仅支持 Linux/CUDA
+
+# 其他工具
+numpy>=1.24.0
