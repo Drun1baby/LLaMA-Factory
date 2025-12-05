@@ -177,3 +177,114 @@ wandb/
 swanlog/
 generated_predictions.jsonl
 predictions_score.json
+
+# ===== 模型相关 =====
+# 微调后的模型权重（LoRA、全量微调等）
+saves/
+checkpoints/
+*.bin
+*.safetensors
+*.pth
+*.pt
+# 排除示例配置文件
+!examples/**/*.bin
+!examples/**/*.safetensors
+
+# 下载的预训练模型（如果本地存储）
+models/
+pretrained_models/
+base_models/
+
+# 模型缓存
+.cache/
+huggingface/
+transformers_cache/
+
+# ===== 数据集相关 =====
+# 自定义数据集（保留示例数据）
+data/*
+!data/README.md
+!data/README_zh.md
+!data/dataset_info.json
+!data/*_demo.json
+!data/*_demo.jsonl
+!data/*_demo.txt
+!data/*_demo.yaml
+!data/identity.json
+!data/my_data.json
+!data/mllm_demo_data/
+
+# 数据集缓存和临时文件
+*.cache
+*.arrow
+*.lock
+
+# ===== model_test 项目相关 =====
+# Flask 日志
+model_test/logs/*.log
+model_test/logs/*.txt
+
+# Flask 实例配置
+model_test/instance/
+model_test/.env
+model_test/.env.local
+
+# 模型测试缓存
+model_test/cache/
+model_test/__pycache__/
+
+# ===== 训练相关 =====
+# 训练日志和输出
+runs/
+logs/
+tensorboard/
+*.log
+
+# 训练检查点
+checkpoint-*/
+*.ckpt
+
+# ===== 环境和配置 =====
+# 环境变量文件
+.env
+.env.local
+.env.*.local
+*.env
+
+# 个人配置文件
+config.local.yaml
+config.local.json
+*_local.yaml
+*_local.json
+
+# ===== 系统和编辑器 =====
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+
+# ===== 其他 =====
+# 临时文件
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# 压缩文件（如果包含大模型）
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+# 排除文档压缩包
+!docs/**/*.zip
+!assets/**/*.zip
